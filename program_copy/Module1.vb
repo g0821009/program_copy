@@ -1,6 +1,7 @@
 ﻿'version 1.000 2014.09.17 release
 'version 2.000 2014.10.03 ファイル転送方法をFTPに変更
 'version 2.010 2014.10.06 FTPログイン設定をパラメータ化
+'version 2.011 2014.10.06 動作確認用MessageBox削除
 
 Imports System.IO
 
@@ -101,7 +102,6 @@ Module Module1
             '閉じる
             ftpRes.Close()
 
-            MsgBox("end")
         End If
 
         Dim files As String()
