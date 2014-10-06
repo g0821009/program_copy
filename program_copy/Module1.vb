@@ -1,11 +1,16 @@
 ﻿'version 1.000 2014.09.17 release
+'version 2.000 2014.10.03 ファイル転送方法をFTPに変更
+'version 2.010 2014.10.06 FTPログイン設定をパラメータ化
 
 Imports System.IO
 
 Module Module1
-    Private fromPath As String
-    Private toPath As String
-    Private deleteFlag As String = "false"
+    Private fromPath As String              ' コピー元フォルダパス
+    Private toPath As String                ' コピー先フォルダパス
+    Private deleteFlag As String = "false"  ' コピー先フォルダ初期化フラグ
+    Private myUri As String = "ftp://localhost/"    ' FTP転送先
+    Private ftp_name As String = ""         ' FTP ログイン名
+    Private ftp_pass As String = ""         ' FTP ログインパス
 
     Sub Main(args As String())
         ' System.Environment.GetCommandLineArgs() でも可
@@ -23,17 +28,80 @@ Module Module1
     End Sub
 
     Sub fileCopy(ByVal sourceDirName As String, ByVal destDirName As String, ByVal searchFileName As String)
+        Dim myCredential As New System.Net.NetworkCredential(ftp_name, ftp_pass)
+
         'コピー先のディレクトリ名の末尾に"\"をつける
         If destDirName(destDirName.Length - 1) <> Path.DirectorySeparatorChar Then
             destDirName = destDirName + Path.DirectorySeparatorChar
         End If
 
-        'todo ワイルドカードはサポートされていません
-        ' 削除にはfor eachでも使ってください.
+        'コピー先フォルダ初期化処理
         If deleteFlag = "true" Then
-            For Each tempFile As String In System.IO.Directory.GetFiles(destDirName)
-                System.IO.File.Delete(tempFile)
-            Next
+            '    For Each tmpFile As String In Directory.GetFiles(destDirName)
+            '        System.IO.File.Delete(tmpFile)
+            '    Next
+
+            'FTPでファイル一覧を取得
+            'ファイル一覧を取得するディレクトリのURI
+            Dim u As New Uri(myUri)
+
+            'FtpWebRequestの作成
+            Dim ftpReq As System.Net.FtpWebRequest = CType(System.Net.WebRequest.Create(u), System.Net.FtpWebRequest)
+            'ログインユーザー名とパスワードを設定
+            ftpReq.Credentials = myCredential
+            'MethodにWebRequestMethods.Ftp.ListDirectoryDetails("LIST")を設定
+            ftpReq.Method = System.Net.WebRequestMethods.Ftp.ListDirectory
+            '要求の完了後に接続を閉じない
+            ftpReq.KeepAlive = True
+            'PASSIVEモードを無効にする
+            ftpReq.UsePassive = False
+
+            'FtpWebResponseを取得
+            Dim ftpRes As System.Net.FtpWebResponse = CType(ftpReq.GetResponse(), System.Net.FtpWebResponse)
+            'FTPサーバーから送信されたデータを取得
+            Dim sr As New System.IO.StreamReader(ftpRes.GetResponseStream())
+            Dim dirList As New System.Collections.Generic.List(Of String)()
+            While True
+                Dim line As String = sr.ReadLine()
+                If line Is Nothing Then
+                    Exit While
+                End If
+                dirList.Add(line)
+            End While
+            sr.Close()
+
+            'FTPサーバーから送信されたステータスを表示
+            Console.WriteLine("{0}: {1}", ftpRes.StatusCode, ftpRes.StatusDescription)
+            '閉じる
+            ftpRes.Close()
+
+            'ファイル一覧にもとづきファイル削除
+            For Each fn In dirList
+                If fn.Contains(".") Then
+                    'ファイル一覧を表示
+                    Debug.WriteLine(fn)
+                    '削除するファイルのURI
+                    u = New Uri(myUri & fn)
+                    'FtpWebRequestの作成
+                    ftpReq = CType(System.Net.WebRequest.Create(u), System.Net.FtpWebRequest)
+                    'ログインユーザー名とパスワードを設定
+                    ftpReq.Credentials = myCredential
+                    '要求の完了後に接続を閉じる
+                    ftpReq.KeepAlive = False
+                    'PASSIVEモードを無効にする
+                    ftpReq.UsePassive = False
+                    'MethodにWebRequestMethods.Ftp.DeleteFile(DELE)を設定
+                    ftpReq.Method = System.Net.WebRequestMethods.Ftp.DeleteFile
+                    'FtpWebResponseを取得
+                    ftpRes = CType(ftpReq.GetResponse(), System.Net.FtpWebResponse)
+                    'FTPサーバーから送信されたステータスを表示
+                    Console.WriteLine("{0}: {1}", ftpRes.StatusCode, ftpRes.StatusDescription)
+                End If
+            Next fn
+            '閉じる
+            ftpRes.Close()
+
+            MsgBox("end")
         End If
 
         Dim files As String()
@@ -61,7 +129,21 @@ Module Module1
             '存在してもコピー元より更新日時が古い時はコピーする
             Try
                 If Not File.Exists(destFileName) OrElse File.GetLastWriteTime(destFileName) < File.GetLastWriteTime(f) Then
-                    File.Copy(f, destFileName, True)
+
+                    'ファイル転送部分
+                    'File.Copy(f, destFileName, True)
+
+                    '---FTPでのファイル転送部分-------------------
+                    'WebClientオブジェクトを作成
+                    Dim wc As New System.Net.WebClient()
+                    'ログインユーザー名とパスワードを指定
+                    wc.Credentials = myCredential
+                    'FTPサーバーにアップロード
+                    wc.UploadFile(myUri & Path.GetFileName(f), f)
+                    '解放する
+                    wc.Dispose()
+                    '---------------------------------------------
+
                     Console.WriteLine("    copy:" & Path.GetFileName(f))
 
                     '書込むファイルを指定する
@@ -121,6 +203,12 @@ Module Module1
                         toPath = setting_item(1)
                     Case "delete"
                         deleteFlag = setting_item(1)
+                    Case "uri"
+                        myUri = setting_item(1)
+                    Case "ftpName"
+                        ftp_name = setting_item(1)
+                    Case "ftpPass"
+                        ftp_pass = setting_item(1)
                     Case Else
                         ' それ以外
                 End Select
