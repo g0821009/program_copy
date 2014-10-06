@@ -1,7 +1,9 @@
 ﻿'version 1.000 2014.09.17 release
 'version 2.000 2014.10.03 ファイル転送方法をFTPに変更
 'version 2.010 2014.10.06 FTPログイン設定をパラメータ化
-'version 2.011 2014.10.06 動作確認用MessageBox削除
+'version 2.011 2014.10.06 動作確認用msgBox削除
+'version 2.012 2014.10.06 引数なしの場合の動作確認処理をコメントアウト
+'version 2.013 2014.10.06 コピー仕様をコメントアウトしFTP転送のみとした
 
 Imports System.IO
 
@@ -18,23 +20,25 @@ Module Module1
 
         If args.Length = 0 Then
             importSetting()
-            fileCopy(fromPath, toPath, "*00000-A4*")
+            fileCopy(fromPath, "*00000-A4*")
             Console.WriteLine("コマンドライン引数はありません。")
         Else
             importSetting()
-            fileCopy(fromPath, toPath, args(0))
+            fileCopy(fromPath, args(0))
         End If
         '        Windows.Forms.MessageBox.Show("Hello, world!", "キャプション")
 
     End Sub
 
-    Sub fileCopy(ByVal sourceDirName As String, ByVal destDirName As String, ByVal searchFileName As String)
+    '2014/10/06 destDirNameを引数から消した、しかし今後コピーを復活させるならoverloadすべきなのかもしれない. 設定ファイルの仕様はそのままにしておく
+    Sub fileCopy(ByVal sourceDirName As String, ByVal searchFileName As String)
+        ' FTP接続用使い回しCredential
         Dim myCredential As New System.Net.NetworkCredential(ftp_name, ftp_pass)
 
         'コピー先のディレクトリ名の末尾に"\"をつける
-        If destDirName(destDirName.Length - 1) <> Path.DirectorySeparatorChar Then
-            destDirName = destDirName + Path.DirectorySeparatorChar
-        End If
+        'If destDirName(destDirName.Length - 1) <> Path.DirectorySeparatorChar Then
+        '    destDirName = destDirName + Path.DirectorySeparatorChar
+        'End If
 
         'コピー先フォルダ初期化処理
         If deleteFlag = "true" Then
@@ -124,41 +128,44 @@ Module Module1
         Dim sw As StreamWriter = New StreamWriter(System.Windows.Forms.Application.StartupPath & Path.DirectorySeparatorChar & "copy_log.txt", False, System.Text.Encoding.Default)
 
         For Each f In files
-            Dim destFileName As String = destDirName + Path.GetFileName(f)
-            'コピー先にファイルが存在しない、
-            '存在してもコピー元より更新日時が古い時はコピーする
+
             Try
-                If Not File.Exists(destFileName) OrElse File.GetLastWriteTime(destFileName) < File.GetLastWriteTime(f) Then
+                'Dim destFileName As String = destDirName + Path.GetFileName(f)
+                'コピー先にファイルが存在しない、
+                '存在してもコピー元より更新日時が古い時はコピーする
+                'If Not File.Exists(destFileName) OrElse File.GetLastWriteTime(destFileName) < File.GetLastWriteTime(f) Then
 
-                    'ファイル転送部分
-                    'File.Copy(f, destFileName, True)
+                'ファイル転送部分
+                'File.Copy(f, destFileName, True)
 
-                    '---FTPでのファイル転送部分-------------------
-                    'WebClientオブジェクトを作成
-                    Dim wc As New System.Net.WebClient()
-                    'ログインユーザー名とパスワードを指定
-                    wc.Credentials = myCredential
-                    'FTPサーバーにアップロード
-                    wc.UploadFile(myUri & Path.GetFileName(f), f)
-                    '解放する
-                    wc.Dispose()
-                    '---------------------------------------------
+                '---FTPでのファイル転送部分-------------------
+                'WebClientオブジェクトを作成
+                Dim wc As New System.Net.WebClient()
+                'ログインユーザー名とパスワードを指定
+                wc.Credentials = myCredential
+                'FTPサーバーにアップロード
+                wc.UploadFile(myUri & Path.GetFileName(f), f)
+                '解放する
+                wc.Dispose()
+                '---------------------------------------------
 
-                    Console.WriteLine("    copy:" & Path.GetFileName(f))
+                Console.WriteLine("    copy:" & Path.GetFileName(f))
 
-                    '書込むファイルを指定する
-                    '（2番目の引数をfalseにすることで新規ファイルを作成する）
-                    Console.WriteLine(System.Windows.Forms.Application.StartupPath)
-                    'ファイルに書込む
-                    sw.Write(Path.GetFileName(f) & "をコピーしました" & Environment.NewLine)
-                End If
+                '書込むファイルを指定する
+                '（2番目の引数をfalseにすることで新規ファイルを作成する）
+                Console.WriteLine(System.Windows.Forms.Application.StartupPath)
+                'ファイルに書込む
+                sw.Write(Path.GetFileName(f) & "をコピーしました" & Environment.NewLine)
+                'End If
             Catch ex As Exception
                 MsgBox(ex.Message)
                 Console.WriteLine("コピーに失敗しました")
                 'Environment.Exit(0)
                 Exit For
             End Try
+
         Next
+
         If files.Count = 0 Then
             'ファイルに書込む
             sw.Write("")
