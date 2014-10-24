@@ -4,24 +4,31 @@
 'version 2.011 2014.10.06 動作確認用msgBox削除
 'version 2.012 2014.10.06 引数なしの場合の動作確認処理をコメントアウト
 'version 2.013 2014.10.06 コピー仕様をコメントアウトしFTP転送のみとした
+'version 2.020 2014.10.21 複数ファイルが検索された場合、選択できるようにした
 
 Imports System.IO
 
 Module Module1
+
     Private fromPath As String              ' コピー元フォルダパス
     Private toPath As String                ' コピー先フォルダパス
     Private deleteFlag As String = "false"  ' コピー先フォルダ初期化フラグ
     Private myUri As String = "ftp://localhost/"    ' FTP転送先
     Private ftp_name As String = ""         ' FTP ログイン名
     Private ftp_pass As String = ""         ' FTP ログインパス
+    Public files As String() = Nothing
 
     Sub Main(args As String())
-        ' System.Environment.GetCommandLineArgs() でも可
+
+        '引数は System.Environment.GetCommandLineArgs() でも可
+        'Proxyを使わない設定
+        System.Net.WebRequest.DefaultWebProxy = Nothing
 
         If args.Length = 0 Then
-            importSetting()
-            fileCopy(fromPath, "*00000-A4*")
+            'importSetting()
+            'fileCopy(fromPath, "*63192-ECF1000*")
             Console.WriteLine("コマンドライン引数はありません。")
+            Console.WriteLine("想定しているの引数は[*文字列*]です。")
         Else
             importSetting()
             fileCopy(fromPath, args(0))
@@ -108,11 +115,11 @@ Module Module1
 
         End If
 
-        Dim files As String()
+        Dim files As String() = Nothing
         'コピー元のディレクトリにあるファイルをコピー
         Console.WriteLine("searching filenames...")
         Try
-            files = Directory.GetFiles(sourceDirName, searchFileName, SearchOption.AllDirectories)
+            files = System.IO.Directory.GetFiles(sourceDirName, searchFileName, SearchOption.AllDirectories)
         Catch ex As Exception
             MsgBox(ex.Message)
             Console.WriteLine("ネットに繋がっていません")
@@ -121,9 +128,18 @@ Module Module1
         End Try
         Console.WriteLine("search filenames finished")
 
+        If files.Length = 0 Then
+            MsgBox("ファイルが見つかりません")
+            Exit Sub
+        End If
+
+        ' ファイル名チェック、変換
+        fileCheck(files)
+
         Dim f As String
         Dim maxDim As Long = UBound(files)
-        '書込むファイルを指定する
+
+        'logファイルを指定する
         '（2番目の引数をfalseにすることで新規ファイルを作成する）
         Dim sw As StreamWriter = New StreamWriter(System.Windows.Forms.Application.StartupPath & Path.DirectorySeparatorChar & "copy_log.txt", False, System.Text.Encoding.Default)
 
@@ -143,8 +159,9 @@ Module Module1
                 Dim wc As New System.Net.WebClient()
                 'ログインユーザー名とパスワードを指定
                 wc.Credentials = myCredential
-                'FTPサーバーにアップロード
-                wc.UploadFile(myUri & Path.GetFileName(f), f)
+                'FTPサーバーにアップロード()
+                'getFileNameはファイル名を変える関数
+                wc.UploadFile(myUri & getFileName(f), f)
                 '解放する
                 wc.Dispose()
                 '---------------------------------------------
@@ -153,7 +170,7 @@ Module Module1
 
                 '書込むファイルを指定する
                 '（2番目の引数をfalseにすることで新規ファイルを作成する）
-                Console.WriteLine(System.Windows.Forms.Application.StartupPath)
+                'Console.WriteLine(System.Windows.Forms.Application.StartupPath)
                 'ファイルに書込む
                 sw.Write(Path.GetFileName(f) & "をコピーしました" & Environment.NewLine)
                 'End If
@@ -204,17 +221,17 @@ Module Module1
                 End If
                 setting_item = Split(setting_line, "::", 2, CompareMethod.Text)
                 Select Case setting_item(0)
-                    Case "from"
+                    Case "from"         ' コピー元フォルダパス
                         fromPath = setting_item(1)
-                    Case "to"
+                    Case "to"           ' コピー先フォルダパス
                         toPath = setting_item(1)
-                    Case "delete"
+                    Case "delete"       ' コピー・転送先フォルダ初期化フラグ
                         deleteFlag = setting_item(1)
-                    Case "uri"
+                    Case "uri"          ' FTP接続先
                         myUri = setting_item(1)
-                    Case "ftpName"
+                    Case "ftpName"      ' FTPログイン名
                         ftp_name = setting_item(1)
-                    Case "ftpPass"
+                    Case "ftpPass"      ' FTPログインパスワード
                         ftp_pass = setting_item(1)
                     Case Else
                         ' それ以外
@@ -222,5 +239,31 @@ Module Module1
             Next
         End If
     End Sub
+
+    ' コピーファイル名の重複チェックと処理
+    Private Sub fileCheck(ByRef files As String())
+
+        ' todo 重複ファイルチェック
+        For Each f As String In files
+
+            Debug.Write("fileCheck:")
+            Debug.WriteLine(f)
+        Next
+
+        If files.Length > 1 Then
+            Dim hoge As New Form1
+            hoge.setFiles(files)
+            System.Windows.Forms.Application.Run(hoge)
+            files = Module1.files
+        End If
+
+    End Sub
+
+    '転送するファイル名変更
+    Private Function getFileName(ByVal f As String) As String
+        Dim ff As String = Path.GetFileName(f)
+        Debug.WriteLine(ff.Substring(0, ff.IndexOf("-")))
+        getFileName = Path.GetFileName(ff.Substring(0, ff.IndexOf("-")) & Path.GetExtension(f))
+    End Function
 
 End Module
