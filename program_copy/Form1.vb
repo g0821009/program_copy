@@ -5,8 +5,7 @@
 Public Class Form1
 
     Public Sub setFiles(ByVal files)
-        Me.TopMost = True
-        Me.Activate()
+
         Module1.files = Nothing
 
         For Each f As String In files
@@ -35,6 +34,12 @@ Public Class Form1
         Me.Close()
     End Sub
 
+    Private Sub Form1_Load(sender As Object, e As EventArgs) Handles Me.Load
+        'フォームの境界線スタイルを「None」にする
+        Me.FormBorderStyle = Windows.Forms.FormBorderStyle.None
+        Me.TopMost = True
+        Me.Activate()
+    End Sub
 End Class
 
 Public Class FileList

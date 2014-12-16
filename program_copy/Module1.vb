@@ -5,8 +5,10 @@
 'version 2.012 2014.10.06 引数なしの場合の動作確認処理をコメントアウト
 'version 2.013 2014.10.06 コピー仕様をコメントアウトしFTP転送のみとした
 'version 2.020 2014.10.21 複数ファイルが検索された場合、選択できるようにした
+'version 2.100 2014.12.12 ハードコーティング等の削除・細かい修正
 
 Imports System.IO
+Imports System.Data.SQLite
 
 Module Module1
 
@@ -15,32 +17,68 @@ Module Module1
     Private deleteFlag As String = "false"  ' コピー先フォルダ初期化フラグ
     Private myUri As String = "ftp://localhost/"    ' FTP転送先
     Private ftp_name As String = ""         ' FTP ログイン名
-    Private ftp_pass As String = ""         ' FTP ログインパス
+    Private ftp_path As String = ""         ' FTP ログインパス
     Public files As String() = Nothing
+    Private db_path As String = ".\filelist.db"
+
+    Private Connection As SQLiteConnection
+    Private Command As SQLiteCommand
 
     Sub Main(args As String())
+
+        Connection = New SQLiteConnection
+        Command = Connection.CreateCommand
+
+        '接続文字列を設定
+        Connection.ConnectionString = "Data Source=" & db_path & ";New=False;Compress=false;"
+
+        'パスワードをセット
+        'Connection.SetPassword("password")
+        Try
+            'オープン
+            Connection.Open()
+        Catch sqlex As SQLiteException
+        Catch ex As Exception
+        End Try
 
         '引数は System.Environment.GetCommandLineArgs() でも可
         'Proxyを使わない設定
         System.Net.WebRequest.DefaultWebProxy = Nothing
 
+        importSetting()
         If args.Length = 0 Then
-            'importSetting()
-            'fileCopy(fromPath, "*63192-ECF1000*")
+            'fileCopy(fromPath, "%83120-110102%")
             Console.WriteLine("コマンドライン引数はありません。")
-            Console.WriteLine("想定しているの引数は[*文字列*]です。")
+            Console.WriteLine("想定しているの引数は[%文字列%]です。")
+        ElseIf args(0) = "-i" Then
+            Console.WriteLine("Delete DB table start")
+            Command = Connection.CreateCommand
+            Command.CommandText = "DELETE from buhin_program"
+            Command.ExecuteNonQuery()
+            Console.WriteLine("Delete DB table finish")
+            ReloadDB(fromPath)
         Else
-            importSetting()
             fileCopy(fromPath, args(0))
         End If
-        '        Windows.Forms.MessageBox.Show("Hello, world!", "キャプション")
+
+        Command.Dispose()
+        Try
+            If Connection.State = ConnectionState.Open Then
+                Connection.Close()
+                Connection.Dispose()
+            End If
+        Catch sqlex As SQLiteException
+            Debug.WriteLine(sqlex.Message)
+        Catch ex As Exception
+            Debug.WriteLine(ex.Message)
+        End Try
 
     End Sub
 
     '2014/10/06 destDirNameを引数から消した、しかし今後コピーを復活させるならoverloadすべきなのかもしれない. 設定ファイルの仕様はそのままにしておく
     Sub fileCopy(ByVal sourceDirName As String, ByVal searchFileName As String)
         ' FTP接続用使い回しCredential
-        Dim myCredential As New System.Net.NetworkCredential(ftp_name, ftp_pass)
+        Dim myCredential As New System.Net.NetworkCredential(ftp_name, ftp_path)
 
         'コピー先のディレクトリ名の末尾に"\"をつける
         'If destDirName(destDirName.Length - 1) <> Path.DirectorySeparatorChar Then
@@ -115,23 +153,56 @@ Module Module1
 
         End If
 
-        Dim files As String() = Nothing
-        'コピー元のディレクトリにあるファイルをコピー
-        Console.WriteLine("searching filenames...")
-        Try
-            files = System.IO.Directory.GetFiles(sourceDirName, searchFileName, SearchOption.AllDirectories)
-        Catch ex As Exception
-            MsgBox(ex.Message)
-            Console.WriteLine("ネットに繋がっていません")
-            Environment.Exit(0)
-            files = Nothing
-        End Try
-        Console.WriteLine("search filenames finished")
+        '------------------------------------------------------------------------
+        'Dim files As String() = Nothing
+        ''コピー元のディレクトリにあるファイルをコピー
+        'Console.WriteLine("searching filenames...")
+        'Try
+        '    files = System.IO.Directory.GetFiles(sourceDirName, searchFileName, SearchOption.AllDirectories)
+        'Catch ex As Exception
+        '    MsgBox(ex.Message)
+        '    Console.WriteLine("ネットに繋がっていません")
+        '    Environment.Exit(0)
+        '    files = Nothing
+        'End Try
+        'Console.WriteLine("search filenames finished")
 
-        If files.Length = 0 Then
-            MsgBox("ファイルが見つかりません")
-            Exit Sub
-        End If
+        'If files.Length = 0 Then
+        '    MsgBox("ファイルが見つかりません")
+        '    Exit Sub
+        'End If
+
+        Dim DataReader As SQLiteDataReader
+
+        'コマンド作成
+        Command = Connection.CreateCommand
+        'SQL作成
+        Command.CommandText = "SELECT * FROM buhin_program where FileName like '" & searchFileName & "'"
+        'データリーダーにデータ取得
+        DataReader = Command.ExecuteReader
+
+        Dim filearray As New ArrayList
+        'データを全件出力
+        Do Until Not DataReader.Read
+            filearray.Add(DataReader.Item("FullPath").ToString)
+        Loop
+        files = filearray.ToArray(GetType(String))
+
+        '破棄
+        DataReader.Close()
+        Command.Dispose()
+        Try
+            If Connection.State = ConnectionState.Open Then
+                Connection.Close()
+                Connection.Dispose()
+            End If
+        Catch sqlex As SQLiteException
+            Debug.WriteLine(sqlex.Message)
+        Catch ex As Exception
+            Debug.WriteLine(ex.Message)
+        End Try
+
+        '------------------------------------------------------------------------
 
         ' ファイル名チェック、変換
         fileCheck(files)
@@ -177,7 +248,7 @@ Module Module1
             Catch ex As Exception
                 MsgBox(ex.Message)
                 Console.WriteLine("コピーに失敗しました")
-                'Environment.Exit(0)
+                'Environment.Exit(0)h
                 Exit For
             End Try
 
@@ -231,8 +302,10 @@ Module Module1
                         myUri = setting_item(1)
                     Case "ftpName"      ' FTPログイン名
                         ftp_name = setting_item(1)
-                    Case "ftpPass"      ' FTPログインパスワード
-                        ftp_pass = setting_item(1)
+                    Case "ftpPath"      ' FTPログインパスワード
+                        ftp_path = setting_item(1)
+                    Case "DBPath"      ' DB path
+                        db_path = setting_item(1)
                     Case Else
                         ' それ以外
                 End Select
@@ -244,6 +317,7 @@ Module Module1
     Private Sub fileCheck(ByRef files As String())
 
         ' todo 重複ファイルチェック
+        '未実装
         For Each f As String In files
 
             Debug.Write("fileCheck:")
@@ -265,5 +339,35 @@ Module Module1
         Debug.WriteLine(ff.Substring(0, ff.IndexOf("-")))
         getFileName = Path.GetFileName(ff.Substring(0, ff.IndexOf("-")) & Path.GetExtension(f))
     End Function
+
+    Private Sub ReloadDB(ByVal mypath As String)
+
+        'コマンド作成
+        Command = Connection.CreateCommand
+
+        Dim files As DirectoryInfo = New DirectoryInfo(mypath)
+        Dim SQLtransaction As SQLite.SQLiteTransaction
+
+        Console.WriteLine(System.DateTime.Now & ": start get file list in " + mypath)
+        ' トランザクション開始
+        SQLtransaction = Connection.BeginTransaction()
+
+        Try
+            For Each f As FileInfo In files.EnumerateFiles("*", SearchOption.AllDirectories)
+                Command.CommandText = "INSERT into buhin_program values (""" & f.FullName & """, """ & f.Name & """, """ & f.DirectoryName & """, """ & f.Extension & """)"
+                Command.ExecuteNonQuery()
+            Next f
+            'トランザクションコミット
+            SQLtransaction.Commit()
+        Catch ex As UnauthorizedAccessException
+            Console.WriteLine(ex.Message)
+        Catch ex As Exception
+            Console.WriteLine("---errer msg----------")
+            Console.WriteLine(ex)
+            Console.WriteLine("---errer msg end------")
+        End Try
+
+        Console.WriteLine(System.DateTime.Now & ": finish get file list.")
+    End Sub
 
 End Module
