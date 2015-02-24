@@ -6,6 +6,7 @@
 'version 2.013 2014.10.06 コピー仕様をコメントアウトしFTP転送のみとした
 'version 2.020 2014.10.21 複数ファイルが検索された場合、選択できるようにした
 'version 2.100 2014.12.12 ハードコーティング等の削除・細かい修正
+'version 2.200 2015.02.24 試験用からの変更前
 
 Imports System.IO
 Imports System.Data.SQLite
