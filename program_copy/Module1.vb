@@ -6,24 +6,24 @@
 'version 2.013 2014.10.06 コピー仕様をコメントアウトしFTP転送のみとした
 'version 2.020 2014.10.21 複数ファイルが検索された場合、選択できるようにした
 'version 2.100 2014.12.12 ハードコーティング等の削除・細かい修正
-'version 2.200 2015.02.24 試験用からの変更前
+'version 2.200 2015.02.24 試験用からの変更前fix
 
 Imports System.IO
 Imports System.Data.SQLite
 
 Module Module1
 
-    Private fromPath As String              ' コピー元フォルダパス
-    Private toPath As String                ' コピー先フォルダパス
-    Private deleteFlag As String = "false"  ' コピー先フォルダ初期化フラグ
+    Private fromPath As String                      ' コピー元フォルダパス
+    Private toPath As String                        ' コピー先フォルダパス
+    Private deleteFlag As String = "false"          ' コピー先フォルダ初期化フラグ
     Private myUri As String = "ftp://localhost/"    ' FTP転送先
-    Private ftp_name As String = ""         ' FTP ログイン名
-    Private ftp_path As String = ""         ' FTP ログインパス
-    Public files As String() = Nothing
-    Private db_path As String = ".\filelist.db"
+    Private ftp_name As String = ""                 ' FTP ログイン名
+    Private ftp_pass As String = ""                 ' FTP ログインパス
+    Public files As String() = Nothing              ' 検索結果変数
+    Private db_path As String = ".\filelist.db"     ' 検索用sqliteDBファイルパス
 
-    Private Connection As SQLiteConnection
-    Private Command As SQLiteCommand
+    Private Connection As SQLiteConnection          ' SQLiteコネクション
+    Private Command As SQLiteCommand                ' SQLiteクエリ
 
     Sub Main(args As String())
 
@@ -48,18 +48,29 @@ Module Module1
 
         importSetting()
         If args.Length = 0 Then
-            'fileCopy(fromPath, "%83120-110102%")
+            'デバック用
+            'fileCopy(fromPath, "%444%")
             Console.WriteLine("コマンドライン引数はありません。")
-            Console.WriteLine("想定しているの引数は[%文字列%]です。")
+            Console.WriteLine("-i         :DB初期化")
+            Console.WriteLine("-p [図番]  :[図番]PDFがあればadobe Readerで表示")
+            Console.WriteLine("[%文字列%] :文字列を検索 %はワイルドカード")
+            MsgBox("終了します。", MsgBoxStyle.MsgBoxSetForeground)
         ElseIf args(0) = "-i" Then
             Console.WriteLine("Delete DB table start")
             Command = Connection.CreateCommand
-            Command.CommandText = "DELETE from buhin_program"
+            Command.CommandText = "DELETE from sawairi_files"
             Command.ExecuteNonQuery()
             Console.WriteLine("Delete DB table finish")
             ReloadDB(fromPath)
-        Else
+        ElseIf args(0) = "-p" And args.Length = 2 Then
+            showPDF(args(1))
+        ElseIf args.Length = 2 Then
+            showPDF(args(1))
             fileCopy(fromPath, args(0))
+        ElseIf args.Length = 1 Then
+            fileCopy(fromPath, args(0))
+        Else
+            Console.WriteLine("不明なオプション")
         End If
 
         Command.Dispose()
@@ -79,7 +90,7 @@ Module Module1
     '2014/10/06 destDirNameを引数から消した、しかし今後コピーを復活させるならoverloadすべきなのかもしれない. 設定ファイルの仕様はそのままにしておく
     Sub fileCopy(ByVal sourceDirName As String, ByVal searchFileName As String)
         ' FTP接続用使い回しCredential
-        Dim myCredential As New System.Net.NetworkCredential(ftp_name, ftp_path)
+        Dim myCredential As New System.Net.NetworkCredential(ftp_name, ftp_pass)
 
         'コピー先のディレクトリ名の末尾に"\"をつける
         'If destDirName(destDirName.Length - 1) <> Path.DirectorySeparatorChar Then
@@ -103,7 +114,7 @@ Module Module1
             'MethodにWebRequestMethods.Ftp.ListDirectoryDetails("LIST")を設定
             ftpReq.Method = System.Net.WebRequestMethods.Ftp.ListDirectory
             '要求の完了後に接続を閉じない
-            ftpReq.KeepAlive = True
+            ftpReq.KeepAlive = False
             'PASSIVEモードを無効にする
             ftpReq.UsePassive = False
 
@@ -178,88 +189,94 @@ Module Module1
         'コマンド作成
         Command = Connection.CreateCommand
         'SQL作成
-        Command.CommandText = "SELECT * FROM buhin_program where FileName like '" & searchFileName & "'"
+        Command.CommandText = "SELECT * FROM sawairi_files where FileName like '" & searchFileName & ".NC'"
+
         'データリーダーにデータ取得
         DataReader = Command.ExecuteReader
 
         Dim filearray As New ArrayList
-        'データを全件出力
+            'データを全件出力
         Do Until Not DataReader.Read
             filearray.Add(DataReader.Item("FullPath").ToString)
         Loop
         files = filearray.ToArray(GetType(String))
 
-        '破棄
+            '破棄
         DataReader.Close()
         Command.Dispose()
-        Try
-            If Connection.State = ConnectionState.Open Then
-                Connection.Close()
-                Connection.Dispose()
-            End If
-        Catch sqlex As SQLiteException
-            Debug.WriteLine(sqlex.Message)
-        Catch ex As Exception
-            Debug.WriteLine(ex.Message)
-        End Try
 
-        '------------------------------------------------------------------------
+        '2015/05/11 PDF表示追加に伴いコメントアウト
+        'Try
+        '    If Connection.State = ConnectionState.Open Then
+        '        Connection.Close()
+        '        Connection.Dispose()
+        '        End If
+        'Catch sqlex As SQLiteException
+        '    Debug.WriteLine(sqlex.Message)
+        'Catch ex As Exception
+        '    Debug.WriteLine(ex.Message)
+        'End Try
 
-        ' ファイル名チェック、変換
+            '------------------------------------------------------------------------
+
+            ' ファイル名チェック、変換
         fileCheck(files)
 
         Dim f As String
         Dim maxDim As Long = UBound(files)
 
-        'logファイルを指定する
-        '（2番目の引数をfalseにすることで新規ファイルを作成する）
+            'logファイルを指定する
+            '（2番目の引数をfalseにすることで新規ファイルを作成する）
         Dim sw As StreamWriter = New StreamWriter(System.Windows.Forms.Application.StartupPath & Path.DirectorySeparatorChar & "copy_log.txt", False, System.Text.Encoding.Default)
 
         For Each f In files
 
             Try
-                'Dim destFileName As String = destDirName + Path.GetFileName(f)
-                'コピー先にファイルが存在しない、
-                '存在してもコピー元より更新日時が古い時はコピーする
-                'If Not File.Exists(destFileName) OrElse File.GetLastWriteTime(destFileName) < File.GetLastWriteTime(f) Then
+                    'Dim destFileName As String = destDirName + Path.GetFileName(f)
+                    'コピー先にファイルが存在しない、
+                    '存在してもコピー元より更新日時が古い時はコピーする
+                    'If Not File.Exists(destFileName) OrElse File.GetLastWriteTime(destFileName) < File.GetLastWriteTime(f) Then
 
-                'ファイル転送部分
-                'File.Copy(f, destFileName, True)
+                    'ファイル転送部分
+                    'File.Copy(f, destFileName, True)
 
-                '---FTPでのファイル転送部分-------------------
-                'WebClientオブジェクトを作成
+                    '---FTPでのファイル転送部分-------------------
+                    'WebClientオブジェクトを作成
                 Dim wc As New System.Net.WebClient()
-                'ログインユーザー名とパスワードを指定
+                    'ログインユーザー名とパスワードを指定
                 wc.Credentials = myCredential
-                'FTPサーバーにアップロード()
-                'getFileNameはファイル名を変える関数
-                wc.UploadFile(myUri & getFileName(f), f)
-                '解放する
+                    'FTPサーバーにアップロード()
+                    'getFileNameはファイル名を変える関数
+                Dim sendFilePath As String = mygetFileName(f)
+                wc.UploadFile(myUri & Path.GetFileName(sendFilePath), sendFilePath)
+                    '解放する
                 wc.Dispose()
-                '---------------------------------------------
+                    '---------------------------------------------
+                Console.WriteLine("    copy:" & Path.GetFileName(sendFilePath))
 
-                Console.WriteLine("    copy:" & Path.GetFileName(f))
+                    '一時ファイルを消す
+                System.IO.File.Delete(sendFilePath)
 
-                '書込むファイルを指定する
-                '（2番目の引数をfalseにすることで新規ファイルを作成する）
-                'Console.WriteLine(System.Windows.Forms.Application.StartupPath)
-                'ファイルに書込む
-                sw.Write(Path.GetFileName(f) & "をコピーしました" & Environment.NewLine)
-                'End If
+                    '書込むファイルを指定する
+                    '（2番目の引数をfalseにすることで新規ファイルを作成する）
+                    'Console.WriteLine(System.Windows.Forms.Application.StartupPath)
+                    'ファイルに書込む
+                sw.Write(Path.GetFileName(sendFilePath) & "をコピーしました" & Environment.NewLine)
+                    'End If
             Catch ex As Exception
                 MsgBox(ex.Message)
                 Console.WriteLine("コピーに失敗しました")
-                'Environment.Exit(0)h
+                    'Environment.Exit(0)h
                 Exit For
-            End Try
+                End Try
 
         Next
 
         If files.Count = 0 Then
-            'ファイルに書込む
+                'ファイルに書込む
             sw.Write("")
 
-        End If
+            End If
         sw.Flush()
         sw.Close()
     End Sub
@@ -303,8 +320,8 @@ Module Module1
                         myUri = setting_item(1)
                     Case "ftpName"      ' FTPログイン名
                         ftp_name = setting_item(1)
-                    Case "ftpPath"      ' FTPログインパスワード
-                        ftp_path = setting_item(1)
+                    Case "ftpPass"      ' FTPログインパスワード
+                        ftp_pass = setting_item(1)
                     Case "DBPath"      ' DB path
                         db_path = setting_item(1)
                     Case Else
@@ -320,7 +337,6 @@ Module Module1
         ' todo 重複ファイルチェック
         '未実装
         For Each f As String In files
-
             Debug.Write("fileCheck:")
             Debug.WriteLine(f)
         Next
@@ -335,10 +351,25 @@ Module Module1
     End Sub
 
     '転送するファイル名変更
-    Private Function getFileName(ByVal f As String) As String
+    '転送前プログラム編集　2015/05/08
+    Private Function mygetFileName(ByRef f As String) As String
+        Dim filePath As String = My.Application.Info.DirectoryPath.ToString()
+        filePath = filePath + Path.DirectorySeparatorChar + Path.GetFileName(f)
+        'ファイルをローカルにコピー(上書き)
+        System.IO.File.Copy(f, filePath, True)
+
         Dim ff As String = Path.GetFileName(f)
+
         Debug.WriteLine(ff.Substring(0, ff.IndexOf("-")))
-        getFileName = Path.GetFileName(ff.Substring(0, ff.IndexOf("-")) & Path.GetExtension(f))
+        'getFileName = Path.GetFileName(ff.Substring(0, ff.IndexOf("-")) & Path.GetExtension(f))
+        'ファイル名を変更しない 2015/02/24
+
+        '転送前プログラム編集画面表示
+        Dim hoge As New Offset
+        hoge.loadFile(filePath)
+        System.Windows.Forms.Application.Run(hoge)
+
+        mygetFileName = filePath
     End Function
 
     Private Sub ReloadDB(ByVal mypath As String)
@@ -354,8 +385,8 @@ Module Module1
         SQLtransaction = Connection.BeginTransaction()
 
         Try
-            For Each f As FileInfo In files.EnumerateFiles("*", SearchOption.AllDirectories)
-                Command.CommandText = "INSERT into buhin_program values (""" & f.FullName & """, """ & f.Name & """, """ & f.DirectoryName & """, """ & f.Extension & """)"
+            For Each f As FileInfo In files.EnumerateFiles("????-?????-??????-??.*", SearchOption.AllDirectories)
+                Command.CommandText = "INSERT into sawairi_files(FullPath,FileName,Directory,Extension,Zuban,Revision) values (""" & f.FullName & """, """ & f.Name & """, """ & f.DirectoryName & """, """ & f.Extension & """, """ & f.Name.Substring(5, 12) & """, """ & f.Name.Substring(18, 2) & """)"
                 Command.ExecuteNonQuery()
             Next f
             'トランザクションコミット
@@ -369,6 +400,48 @@ Module Module1
         End Try
 
         Console.WriteLine(System.DateTime.Now & ": finish get file list.")
+    End Sub
+
+    Private Sub showPDF(searchFileName As String)
+        Dim DataReader As SQLiteDataReader
+
+        'コマンド作成
+        Command = Connection.CreateCommand
+        'SQL作成
+        Command.CommandText = "SELECT FullPath, Zuban, Extension, OrderNum FROM sawairi_files INNER JOIN revision_order ON sawairi_files.Revision = revision_order.Revision WHERE Extension = '.pdf' AND Zuban = '" & searchFileName & "' ORDER BY OrderNum ASC"
+
+        'データリーダーにデータ取得
+        DataReader = Command.ExecuteReader
+
+        Dim filearray As New ArrayList
+        'データを全件出力
+        Do Until Not DataReader.Read
+            filearray.Add(DataReader.Item("FullPath").ToString)
+        Loop
+        files = filearray.ToArray(GetType(String))
+
+        'PDFファイルが見つかれば
+        If files.Length > 0 Then
+            'PDFを表示する
+            System.Diagnostics.Process.Start("acrord32.exe", """" & files(0).ToString & """")
+        End If
+
+        '破棄
+        DataReader.Close()
+        Command.Dispose()
+
+        '2015/05/11 PDF表示追加に伴いコメントアウト
+        'Try
+        '    If Connection.State = ConnectionState.Open Then
+        '        Connection.Close()
+        '        Connection.Dispose()
+        '    End If
+        'Catch sqlex As SQLiteException
+        '    Debug.WriteLine(sqlex.Message)
+        'Catch ex As Exception
+        '    Debug.WriteLine(ex.Message)
+        'End Try
+
     End Sub
 
 End Module

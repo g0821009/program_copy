@@ -5,7 +5,6 @@
 Public Class Form1
 
     Public Sub setFiles(ByVal files)
-
         Module1.files = Nothing
 
         For Each f As String In files
@@ -18,7 +17,6 @@ Public Class Form1
             'DisplayMemberプロパティを項目の表示に利用する
             .DisplayMember = "FileName"
         End With
-
     End Sub
 
     '
@@ -36,7 +34,7 @@ Public Class Form1
 
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles Me.Load
         'フォームの境界線スタイルを「None」にする
-        Me.FormBorderStyle = Windows.Forms.FormBorderStyle.None
+        'Me.FormBorderStyle = Windows.Forms.FormBorderStyle.None
         Me.TopMost = True
         Me.Activate()
     End Sub
