@@ -20,8 +20,6 @@ Module Module1
     Private myUri As String = "ftp://localhost/"    ' FTP転送先
     Private ftp_name As String = ""                 ' FTP ログイン名
     Private ftp_pass As String = ""                 ' FTP ログインパス
-    Public fontsize As String = "14"               ' 編集画面フォントサイズ
-    Private ini_comment As String = ""              ' コンフィグコメント
     Public files As String() = Nothing              ' 検索結果変数
     Private db_path As String = ".\filelist.db"     ' 検索用sqliteDBファイルパス
 
@@ -88,8 +86,6 @@ Module Module1
             Debug.WriteLine(ex.Message)
         End Try
 
-        exportSetting()
-
     End Sub
 
     '2014/10/06 destDirNameを引数から消した、しかし今後コピーを復活させるならoverloadすべきなのかもしれない. 設定ファイルの仕様はそのままにしておく
@@ -102,7 +98,6 @@ Module Module1
         '    destDirName = destDirName + Path.DirectorySeparatorChar
         'End If
 
-        '------------------------------------------------------------------------
         'コピー先フォルダ初期化処理
         If deleteFlag = "true" Then
             '    For Each tmpFile As String In Directory.GetFiles(destDirName)
@@ -254,21 +249,25 @@ Module Module1
                 'FTPサーバーにアップロード()
                 'getFileNameはファイル名を変える関数
                 Dim sendFilePath As String = mygetFileName(f)
-                If System.IO.File.Exists(sendFilePath) Then
-                    wc.UploadFile(myUri & Path.GetFileName(sendFilePath), sendFilePath)
-                    '一時ファイルを消す
-                    System.IO.File.Delete(sendFilePath)
-                    'ファイルに書込む
-                    sw.Write(Path.GetFileName(sendFilePath) & "をコピーしました" & Environment.NewLine)
-                    Console.WriteLine("    copy:" & Path.GetFileName(sendFilePath))
-                End If
+                wc.UploadFile(myUri & Path.GetFileName(sendFilePath), sendFilePath)
                 '解放する
                 wc.Dispose()
                 '---------------------------------------------
+                Console.WriteLine("    copy:" & Path.GetFileName(sendFilePath))
 
+                '一時ファイルを消す
+                System.IO.File.Delete(sendFilePath)
+
+                '書込むファイルを指定する
+                '（2番目の引数をfalseにすることで新規ファイルを作成する）
+                'Console.WriteLine(System.Windows.Forms.Application.StartupPath)
+                'ファイルに書込む
+                sw.Write(Path.GetFileName(sendFilePath) & "をコピーしました" & Environment.NewLine)
+                'End If
             Catch ex As Exception
                 MsgBox(ex.Message)
                 Console.WriteLine("コピーに失敗しました")
+                'Environment.Exit(0)h
                 Exit For
             End Try
 
@@ -281,26 +280,6 @@ Module Module1
         End If
         sw.Flush()
         sw.Close()
-    End Sub
-
-    Private Sub exportSetting()
-        Dim settingFile As IO.StreamWriter
-        Try
-            '既に存在するテキストに追加する場合は第２引数をTrueにする。
-            settingFile = New IO.StreamWriter(".\copy_config.txt", False, System.Text.Encoding.GetEncoding("Shift-JIS"))
-            settingFile.Write(ini_comment)
-            settingFile.WriteLine("from::" & fromPath)
-            settingFile.WriteLine("delete::" & deleteFlag)
-            settingFile.WriteLine("uri::" & myUri)
-            settingFile.WriteLine("ftpName::" & ftp_name)
-            settingFile.WriteLine("ftpPass::" & ftp_pass)
-            settingFile.WriteLine("DBPath::" & db_path)
-            settingFile.WriteLine("fontsize::" & fontsize)
-            settingFile.Close()
-        Catch ex As Exception
-            Debug.WriteLine("Error:")
-            Debug.WriteLine(ex)
-        End Try
     End Sub
 
     Private Sub importSetting()
@@ -328,7 +307,6 @@ Module Module1
                 Debug.WriteLine(setting_line)
                 ' 空行、行頭2文字が//の場合は次の行へ
                 If setting_line.Length = 0 OrElse setting_line.Substring(0, 2) = "//" Then
-                    ini_comment = ini_comment & setting_line.ToString & System.Environment.NewLine
                     Continue For
                 End If
                 setting_item = Split(setting_line, "::", 2, CompareMethod.Text)
@@ -347,8 +325,6 @@ Module Module1
                         ftp_pass = setting_item(1)
                     Case "DBPath"      ' DB path
                         db_path = setting_item(1)
-                    Case "fontsize"      ' 編集画面フォントサイズ
-                        fontsize = setting_item(1)
                     Case Else
                         ' それ以外
                 End Select
@@ -391,7 +367,7 @@ Module Module1
 
         '転送前プログラム編集画面表示
         Dim hoge As New Offset
-        hoge.loadFile(filePath, fontsize)
+        hoge.loadFile(filePath)
         System.Windows.Forms.Application.Run(hoge)
 
         mygetFileName = filePath
@@ -404,54 +380,15 @@ Module Module1
 
         Dim files As DirectoryInfo = New DirectoryInfo(mypath)
         Dim SQLtransaction As SQLite.SQLiteTransaction
-        Dim index As Integer = 1
 
         Console.WriteLine(System.DateTime.Now & ": start get file list in " + mypath)
         ' トランザクション開始
         SQLtransaction = Connection.BeginTransaction()
 
         Try
-            For Each f As FileInfo In files.EnumerateFiles("*-*-*.*", SearchOption.AllDirectories)
-                Console.WriteLine(f.Name)
-                'Dim zuban As String = f.Name.Substring(f.Name.IndexOf("-",0)+1,
-                'If System.Text.RegularExpressions.Regex.IsMatch(f.Name, "") Then
-                'End If
-
-                'リビジョン抜き出し
-                Dim rev As String = ""
-                If f.Name.Length - f.Name.LastIndexOf("-") > 3 Then
-                    '2015/06/25 追加した指示書のファイル名が仕様でなかったため、リビジョンの取り方を変更
-                    'rev = f.Name.Substring(f.Name.LastIndexOf("-") + 1, 3)
-                    Dim tmpname As String = f.Name.Replace("_", "-")
-                    rev = tmpname.Substring(tmpname.LastIndexOf("-") + 1, 3)
-                    If System.Text.RegularExpressions.Regex.IsMatch(rev, "^..(\.|-|\s)") Then
-                        rev = rev.Substring(0, 2)
-                    Else
-                        rev = "00"
-                    End If
-                Else
-                    rev = f.Name.Substring(f.Name.LastIndexOf("-") + 1, 2)
-                End If
-
-                '図番抜き出し
-                Dim zuban As String
-                Dim tmp_zuban As String()
-                tmp_zuban = Split(f.Name, "-", -1, CompareMethod.Binary)
-                If tmp_zuban.Length >= 2 Then
-                    zuban = tmp_zuban(1) & "-" & tmp_zuban(2)
-                    Console.WriteLine(zuban)
-                Else
-                    zuban = f.Name
-                End If
-                If f.Extension.Length > 0 Then
-                    zuban = zuban.Replace(f.Extension, "")
-                End If
-
-                Command.CommandText = "INSERT into sawairi_files(FullPath,FileName,Directory,Extension,Zuban,Revision) values (""" & f.FullName & """, """ & f.Name & """, """ & f.DirectoryName & """, """ & f.Extension & """, """ & zuban & """, """ & rev & """)"
-                'Console.WriteLine(Command.CommandText)
+            For Each f As FileInfo In files.EnumerateFiles("????-?????-??????-??.*", SearchOption.AllDirectories)
+                Command.CommandText = "INSERT into sawairi_files(FullPath,FileName,Directory,Extension,Zuban,Revision) values (""" & f.FullName & """, """ & f.Name & """, """ & f.DirectoryName & """, """ & f.Extension & """, """ & f.Name.Substring(5, 12) & """, """ & f.Name.Substring(18, 2) & """)"
                 Command.ExecuteNonQuery()
-                index = index + 1
-
             Next f
             'トランザクションコミット
             SQLtransaction.Commit()
@@ -464,7 +401,6 @@ Module Module1
         End Try
 
         Console.WriteLine(System.DateTime.Now & ": finish get file list.")
-        System.Threading.Thread.Sleep(1000)
     End Sub
 
     Private Sub showPDF(searchFileName As String)
@@ -473,9 +409,7 @@ Module Module1
         'コマンド作成
         Command = Connection.CreateCommand
         'SQL作成
-        '2015/06/25 ZUBANの検索を完全一意から前方一致のlikeに変更、追加した指示書の命名規則が仕様でなかったため
-        'Command.CommandText = "SELECT FullPath, Zuban, Extension, OrderNum FROM sawairi_files INNER JOIN revision_order ON sawairi_files.Revision = revision_order.Revision WHERE Extension = '.pdf' AND Zuban = '" & searchFileName & "' ORDER BY OrderNum DESC"
-        Command.CommandText = "SELECT FullPath, Zuban, Extension, OrderNum FROM sawairi_files INNER JOIN revision_order ON sawairi_files.Revision = revision_order.Revision WHERE Extension = '.pdf' AND Zuban LIKE '" & searchFileName & "%' ORDER BY OrderNum DESC"
+        Command.CommandText = "SELECT FullPath, Zuban, Extension, OrderNum FROM sawairi_files INNER JOIN revision_order ON sawairi_files.Revision = revision_order.Revision WHERE Extension = '.pdf' AND Zuban = '" & searchFileName & "' ORDER BY OrderNum ASC"
 
         'データリーダーにデータ取得
         DataReader = Command.ExecuteReader
@@ -490,7 +424,7 @@ Module Module1
         'PDFファイルが見つかれば
         If files.Length > 0 Then
             'PDFを表示する
-            System.Diagnostics.Process.Start("AcroRd32.exe", """" & files(0).ToString & """")
+            System.Diagnostics.Process.Start("acrord32.exe", """" & files(0).ToString & """")
         End If
 
         '破棄
