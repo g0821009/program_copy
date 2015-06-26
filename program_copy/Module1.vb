@@ -201,13 +201,13 @@ Module Module1
         DataReader = Command.ExecuteReader
 
         Dim filearray As New ArrayList
-            'データを全件出力
+        'データを全件出力
         Do Until Not DataReader.Read
             filearray.Add(DataReader.Item("FullPath").ToString)
         Loop
         files = filearray.ToArray(GetType(String))
 
-            '破棄
+        '破棄
         DataReader.Close()
         Command.Dispose()
 
@@ -231,28 +231,28 @@ Module Module1
         Dim f As String
         Dim maxDim As Long = UBound(files)
 
-            'logファイルを指定する
-            '（2番目の引数をfalseにすることで新規ファイルを作成する）
+        'logファイルを指定する
+        '（2番目の引数をfalseにすることで新規ファイルを作成する）
         Dim sw As StreamWriter = New StreamWriter(System.Windows.Forms.Application.StartupPath & Path.DirectorySeparatorChar & "copy_log.txt", False, System.Text.Encoding.Default)
 
         For Each f In files
 
             Try
-                    'Dim destFileName As String = destDirName + Path.GetFileName(f)
-                    'コピー先にファイルが存在しない、
-                    '存在してもコピー元より更新日時が古い時はコピーする
-                    'If Not File.Exists(destFileName) OrElse File.GetLastWriteTime(destFileName) < File.GetLastWriteTime(f) Then
+                'Dim destFileName As String = destDirName + Path.GetFileName(f)
+                'コピー先にファイルが存在しない、
+                '存在してもコピー元より更新日時が古い時はコピーする
+                'If Not File.Exists(destFileName) OrElse File.GetLastWriteTime(destFileName) < File.GetLastWriteTime(f) Then
 
-                    'ファイル転送部分
-                    'File.Copy(f, destFileName, True)
+                'ファイル転送部分
+                'File.Copy(f, destFileName, True)
 
-                    '---FTPでのファイル転送部分-------------------
-                    'WebClientオブジェクトを作成
+                '---FTPでのファイル転送部分-------------------
+                'WebClientオブジェクトを作成
                 Dim wc As New System.Net.WebClient()
-                    'ログインユーザー名とパスワードを指定
+                'ログインユーザー名とパスワードを指定
                 wc.Credentials = myCredential
-                    'FTPサーバーにアップロード()
-                    'getFileNameはファイル名を変える関数
+                'FTPサーバーにアップロード()
+                'getFileNameはファイル名を変える関数
                 Dim sendFilePath As String = mygetFileName(f)
                 If System.IO.File.Exists(sendFilePath) Then
                     wc.UploadFile(myUri & Path.GetFileName(sendFilePath), sendFilePath)
@@ -275,10 +275,10 @@ Module Module1
         Next
 
         If files.Count = 0 Then
-                'ファイルに書込む
+            'ファイルに書込む
             sw.Write("")
 
-            End If
+        End If
         sw.Flush()
         sw.Close()
     End Sub
