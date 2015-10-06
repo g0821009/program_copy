@@ -7,6 +7,7 @@
 'version 2.020 2014.10.21 複数ファイルが検索された場合、選択できるようにした
 'version 2.100 2014.12.12 ハードコーティング等の削除・細かい修正
 'version 2.200 2015.02.24 試験用からの変更前fix
+'version 2.300 2015.10.06 安定版
 
 Imports System.IO
 Imports System.Data.SQLite
@@ -19,7 +20,7 @@ Module Module1
     Private myUri As String = "ftp://localhost/"    ' FTP転送先
     Private ftp_name As String = ""                 ' FTP ログイン名
     Private ftp_pass As String = ""                 ' FTP ログインパス
-    Public fontsize As String = "14"               ' 編集画面フォントサイズ
+    Public fontsize As String = "14"                ' 編集画面フォントサイズ
     Private ini_comment As String = ""              ' コンフィグコメント
     Public files As String() = Nothing              ' 検索結果変数
     Private db_path As String = ".\filelist.db"     ' 検索用sqliteDBファイルパス
@@ -370,6 +371,8 @@ Module Module1
             hoge.setFiles(files)
             System.Windows.Forms.Application.Run(hoge)
             files = Module1.files
+        ElseIf files.Length = 0 Then
+            MsgBox(".NC file not found.")
         End If
 
     End Sub

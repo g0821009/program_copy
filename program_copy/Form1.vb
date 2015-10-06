@@ -2,6 +2,8 @@
 '部品加工　プログラムコピー　選択Form
 '
 
+Imports System.IO.Path
+
 Public Class Form1
 
     Public Sub setFiles(ByVal files)
@@ -49,7 +51,7 @@ Public Class FileList
 
     Public ReadOnly Property FileName() As String
         Get
-            Return System.IO.Path.GetFileName(Me.myfullpath)
+            Return GetFileName(Me.myfullpath) & vbTab & " (フォルダ名:" & GetFileName(GetDirectoryName(Me.myfullpath)) & ")"
         End Get
     End Property
 
