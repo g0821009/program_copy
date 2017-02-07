@@ -7,7 +7,9 @@
 'version 2.020 2014.10.21 複数ファイルが検索された場合、選択できるようにした
 'version 2.100 2014.12.12 ハードコーティング等の削除・細かい修正
 'version 2.200 2015.02.24 試験用からの変更前fix
-'version 2.300 2015.10.06 安定版
+'version 3.200 2015.10.06 安定版
+'version 3.300 2016.03.08 ファナックの仕様が異なるため、繰り返し文字"L"を"K"に置換するかフラグで管理する
+'version 3.400 2017.02.08 FTP送信時にデフォルトだとバイナリ形式で送信するため必ずアスキー（テキスト）で送信するように変更
 
 Imports System.IO
 Imports System.Data.SQLite
@@ -21,6 +23,7 @@ Module Module1
     Private ftp_name As String = ""                 ' FTP ログイン名
     Private ftp_pass As String = ""                 ' FTP ログインパス
     Public fontsize As String = "14"                ' 編集画面フォントサイズ
+    Private L2KFlag As String = "false"               ' Offsetクラスで文字LをKに置換するフラグ
     Private ini_comment As String = ""              ' コンフィグコメント
     Public files As String() = Nothing              ' 検索結果変数
     Private db_path As String = ".\filelist.db"     ' 検索用sqliteDBファイルパス
@@ -34,7 +37,9 @@ Module Module1
         Command = Connection.CreateCommand
 
         '接続文字列を設定
-        Connection.ConnectionString = "Data Source=" & db_path & ";New=False;Compress=false;"
+        'Connection.ConnectionString = "Data Source=" & db_path & ";New=False;Compress=false;"
+        Connection.ConnectionString = "Data Source=" & My.Application.Info.DirectoryPath & "\filelist.db;New=False;Compress=false;"
+
 
         'パスワードをセット
         'Connection.SetPassword("password")
@@ -51,8 +56,14 @@ Module Module1
 
         importSetting()
         If args.Length = 0 Then
+            '自分自身のAssemblyを取得
+            Dim asm As System.Reflection.Assembly = System.Reflection.Assembly.GetExecutingAssembly()
+            'バージョンの取得
+            Dim ver As System.Version = asm.GetName().Version
             'デバック用
             'fileCopy(fromPath, "%444%")
+            Console.WriteLine("バージョン：" & ver.ToString)
+            Console.WriteLine("備考：L2Kフラグ追加 2016-03-08")
             Console.WriteLine("コマンドライン引数はありません。")
             Console.WriteLine("-i         :DB初期化")
             Console.WriteLine("-p [図番]  :[図番]PDFがあればadobe Readerで表示")
@@ -119,7 +130,7 @@ Module Module1
             ftpReq.Credentials = myCredential
             'MethodにWebRequestMethods.Ftp.ListDirectoryDetails("LIST")を設定
             ftpReq.Method = System.Net.WebRequestMethods.Ftp.ListDirectory
-            '要求の完了後に接続を閉じない
+            'FtpWebResponseのCloseメソッドが呼び出された時に、ログアウトしてサーバーとの接続を切断
             ftpReq.KeepAlive = False
             'PASSIVEモードを無効にする
             ftpReq.UsePassive = False
@@ -296,6 +307,7 @@ Module Module1
             settingFile.WriteLine("ftpPass::" & ftp_pass)
             settingFile.WriteLine("DBPath::" & db_path)
             settingFile.WriteLine("fontsize::" & fontsize)
+            settingFile.WriteLine("L2KFlag::" & L2KFlag)
             settingFile.Close()
         Catch ex As Exception
             Debug.WriteLine("Error:")
@@ -349,6 +361,8 @@ Module Module1
                         db_path = setting_item(1)
                     Case "fontsize"      ' 編集画面フォントサイズ
                         fontsize = setting_item(1)
+                    Case "L2KFlag"
+                        L2KFlag = setting_item(1)
                     Case Else
                         ' それ以外
                 End Select
@@ -393,7 +407,7 @@ Module Module1
 
         '転送前プログラム編集画面表示
         Dim hoge As New Offset
-        hoge.loadFile(filePath, fontsize)
+        hoge.loadFile(filePath, fontsize, L2KFlag)
         System.Windows.Forms.Application.Run(hoge)
 
         mygetFileName = filePath

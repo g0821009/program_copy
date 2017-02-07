@@ -4,7 +4,7 @@ Public Class Offset
     Private textFile As String
     Private deleteflag As Boolean = True
 
-    Public Sub loadFile(ByVal arg As String, ByVal fontsize As String)
+    Public Sub loadFile(ByVal arg As String, ByVal fontsize As String, ByVal L2KFlag As String)
 
         TextBox1.Font = New Font("MS UI Gothic", fontsize)
 
@@ -16,6 +16,21 @@ Public Class Offset
         'テキストファイルの中身をすべて読み込む
         'Console.WriteLine(System.IO.File.ReadAllText(textFile, enc))
         TextBox1.Text = System.IO.File.ReadAllText(textFile, enc)
+        '2016-03-08追加 ファナックのシステムの違いにより、LをKに置換する場合の処理,TOOLの文字列はそのまま
+        If (L2KFlag = "true") Then
+            TextBox1.Text = TextBox1.Text.Replace("L0", "K0")
+            TextBox1.Text = TextBox1.Text.Replace("L1", "K1")
+            TextBox1.Text = TextBox1.Text.Replace("L2", "K2")
+            TextBox1.Text = TextBox1.Text.Replace("L3", "K3")
+            TextBox1.Text = TextBox1.Text.Replace("L4", "K4")
+            TextBox1.Text = TextBox1.Text.Replace("L5", "K5")
+            TextBox1.Text = TextBox1.Text.Replace("L6", "K6")
+            TextBox1.Text = TextBox1.Text.Replace("L7", "K7")
+            TextBox1.Text = TextBox1.Text.Replace("L8", "K8")
+            TextBox1.Text = TextBox1.Text.Replace("L9", "K9")
+
+        End If
+        'windowタイトルのテキストのこと
         Me.Text = System.IO.Path.GetFileName(arg)
     End Sub
 
